@@ -25,25 +25,41 @@ import torch.utils.data
 import dataset
 from echotorch.transforms import text
 import random
+from torch.autograd import Variable
 
 # Experience parameter
 window_size = 500
 batch_size = 64
 sample_batch = 4
-epoch_batches = 10000
-max_epoch = 300
+epoch_batches = 10
+max_epoch = 1
 
-# Author identification dataset
-pan18loader = torch.utils.data.DataLoader(
+# Author identification training dataset
+pan18loader_training = torch.utils.data.DataLoader(
     dataset.AuthorIdentificationDataset(root="./data/", download=True, transform=text.Character2Gram(), problem=1),
     batch_size=1, shuffle=True)
+
+# Author identification test dataset
+pan18loader_test = torch.utils.data.DataLoader(
+    dataset.AuthorIdentificationDataset(root="./data/", download=True, transform=text.Character2Gram(), problem=1,
+                                        train=False),
+    batch_size=1, shuffle=True)
+
+# Authors
+author_to_idx = dict()
+for idx, author in enumerate(pan18loader_training.dataset.authors):
+    author_to_idx[author] = idx
+# end for
+
+# Number of authors
+n_authors = len(author_to_idx)
 
 # Total training data
 training_data = list()
 training_labels = list()
 
 # Get training data
-for i, data in enumerate(pan18loader):
+for i, data in enumerate(pan18loader_training):
     # Inputs and labels
     inputs, labels = data
 
@@ -59,6 +75,9 @@ n_samples = len(training_labels)
 for epoch in range(max_epoch):
     # For each batch
     for b in range(epoch_batches):
+        # Batch labels
+        batch_labels = torch.LongTensor(batch_size)
+
         # Get samples for the batch
         for i in range(batch_size):
             # Random sample and position
@@ -76,9 +95,60 @@ for epoch in range(max_epoch):
             else:
                 batch = torch.cat((batch, random_sequence), dim=0)
             # end if
+
+            # Label
+            batch_labels[i] = author_to_idx[training_labels[random_sample][0]]
         # end for
 
-        # Print
-        print(batch.size())
+        # To variable
+        inputs, labels = Variable(batch), Variable(batch_labels)
+
+        # TRAINING
     # end for
+
+    # Counter
+    success = 0.0
+    count = 0.0
+
+    # For each test sample
+    for i, data in enumerate(pan18loader_test):
+        # Inputs and labels
+        inputs, labels = data
+
+        # Labels as tensor
+        labels = [author_to_idx[l] for l in labels]
+        labels = torch.LongTensor(labels)
+
+        # Sample length
+        sample_length = inputs.size(1)
+
+        # Authors predictions
+        author_predictions = torch.zeros(sample_length-window_size, n_authors)
+
+        # Sliding window
+        for pos in range(0, sample_length-window_size):
+            # Window data
+            window_data = inputs[0, pos:pos+window_size]
+
+            # Classify
+            author_predictions[pos] = torch.zeros(1, n_authors)
+            author_predictions[pos, 0] = 1.0
+        # end for
+
+        # Max average probability through time
+        average_probs = torch.mean(author_predictions, dim=0)
+
+        # Predicted author
+        _, indice = torch.max(average_probs, dim=0)
+
+        # Compare
+
+        if torch.equal(labels, indice):
+            success += 1.0
+        # end if
+        count += 1.0
+    # end for
+
+    # Display accuracy
+    print(u"Test accuracy : {}".format(success / count * 100.0))
 # end for
