@@ -34,6 +34,7 @@ class AuthorIdentificationDataset(Dataset):
         self.problem = problem
         self.train = train
         self.transform = transform
+        self.authors = list()
 
         # List of text
         self.texts = list()
@@ -156,6 +157,11 @@ class AuthorIdentificationDataset(Dataset):
                     for candidate_author in candidate_authors:
                         # Author name
                         author_name = candidate_author['author-name']
+
+                        # Add  to authors
+                        if author_name not in self.authors:
+                            self.authors.append(author_name)
+                        # end if
 
                         # For each text
                         for file_path in os.listdir(os.path.join(self.root, problem_name, author_name)):
