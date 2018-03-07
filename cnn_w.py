@@ -102,10 +102,6 @@ for epoch in range(max_epoch):
 
         # To variable
         inputs, labels = Variable(batch), Variable(batch_labels)
-
-        # TRAINING
-        print(inputs.size())
-        print(labels)
     # end for
 
     # Counter
